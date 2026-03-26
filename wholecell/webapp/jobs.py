@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import threading
@@ -91,6 +92,26 @@ class JobManager:
 			row = conn.execute(
 				'SELECT * FROM jobs WHERE id = ?', (job_id,)).fetchone()
 		return dict(row) if row else None
+
+	def delete_job(self, job_id: int, delete_output: bool = True) -> bool:
+		"""Delete a job record and optionally its output directory.
+
+		Only completed or failed jobs can be deleted.
+		"""
+		job = self.get_job(job_id)
+		if not job:
+			return False
+		if job['status'] not in ('done', 'failed'):
+			return False
+		if delete_output and job.get('output_dir'):
+			out_dir = job['output_dir']
+			# Safety: only delete if inside out/
+			out_root = os.path.realpath(os.path.join(self.wcecoli_root, 'out'))
+			if os.path.isdir(out_dir) and os.path.realpath(out_dir).startswith(out_root + os.sep):
+				shutil.rmtree(out_dir, ignore_errors=True)
+		with self._connect() as conn:
+			conn.execute('DELETE FROM jobs WHERE id = ?', (job_id,))
+		return True
 
 	def _update_status(self, job_id: int, status: str, **kwargs) -> None:
 		fields = ['status = ?']

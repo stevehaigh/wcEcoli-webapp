@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 import dash
-from dash import dcc, html
+from dash import dcc, html, ALL
 from dash.dependencies import Input, Output
 
 from wholecell.webapp.jobs import PHASE_DURATIONS, PHASES, JobManager
@@ -20,6 +20,7 @@ def layout() -> html.Div:
 		]),
 		dcc.Interval(id='runs-interval', interval=5000, n_intervals=0),
 		html.Div(id='runs-table'),
+		html.Div(id='runs-delete-status', style={'marginTop': '10px'}),
 	])
 
 
@@ -29,8 +30,9 @@ def register_callbacks(app: dash.Dash, job_manager: JobManager) -> None:
 	@app.callback(
 		Output('runs-table', 'children'),
 		Input('runs-interval', 'n_intervals'),
+		Input('runs-delete-status', 'children'),
 	)
-	def update_table(n):
+	def update_table(n, _delete_status):
 		jobs = job_manager.list_jobs()
 		if not jobs:
 			return html.P('No jobs yet. Go to Configure to submit one.',
@@ -46,6 +48,14 @@ def register_callbacks(app: dash.Dash, job_manager: JobManager) -> None:
 			gens = config.get('generations', '?')
 			seeds = config.get('init_sims', '?')
 
+			can_delete = status in ('done', 'failed')
+			delete_btn = html.Button(
+				'Delete',
+				id={'type': 'delete-job-btn', 'index': job['id']},
+				className='btn-delete',
+				style={'fontSize': '11px', 'padding': '2px 8px', 'cursor': 'pointer'},
+			) if can_delete else ''
+
 			rows.append(html.Tr([
 				html.Td(f'#{job["id"]}'),
 				html.Td(html.Span(status, className=badge_class)),
@@ -59,7 +69,7 @@ def register_callbacks(app: dash.Dash, job_manager: JobManager) -> None:
 						html.Summary('Error'),
 						html.Pre(job.get('error_message', ''),
 							style={'fontSize': '11px', 'maxHeight': '200px', 'overflow': 'auto'}),
-					]) if job.get('error_message') else '',
+					]) if job.get('error_message') else delete_btn,
 				),
 			]))
 
@@ -72,6 +82,23 @@ def register_callbacks(app: dash.Dash, job_manager: JobManager) -> None:
 				html.Tbody(rows),
 			],
 		)
+
+	@app.callback(
+		Output('runs-delete-status', 'children'),
+		Input({'type': 'delete-job-btn', 'index': ALL}, 'n_clicks'),
+		prevent_initial_call=True,
+	)
+	def delete_job(n_clicks_list):
+		from dash import ctx
+		if not ctx.triggered_id or not any(n_clicks_list):
+			raise dash.exceptions.PreventUpdate
+		job_id = ctx.triggered_id['index']
+		ok = job_manager.delete_job(job_id)
+		if ok:
+			return html.Span(f'Job #{job_id} deleted.',
+				style={'color': '#2ea44f', 'fontSize': '13px'})
+		return html.Span(f'Could not delete job #{job_id}.',
+			style={'color': '#cf222e', 'fontSize': '13px'})
 
 
 def _format_time(iso_str: str) -> str:

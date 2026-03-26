@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import List, Tuple
 
 import dash
-from dash import dcc, html
+from dash import dcc, html, ALL
 from dash.dependencies import Input, Output, State
 import numpy as np
 import plotly.graph_objs as go
@@ -81,8 +81,9 @@ def layout(out_path: str) -> html.Div:
 			config={'displayModeBar': True, 'scrollZoom': True},
 		),
 
+		# Overlay controls
 		html.Div(style={'marginTop': '15px', 'padding': '10px', 'background': '#f0f0f0', 'borderRadius': '5px'}, children=[
-			html.Label('Overlay trace from another run:', style={'fontWeight': 'bold', 'marginBottom': '5px', 'display': 'block'}),
+			html.Label('Overlay traces from other runs:', style={'fontWeight': 'bold', 'marginBottom': '5px', 'display': 'block'}),
 			html.Div(style={'display': 'grid', 'gridTemplateColumns': '1fr 1fr 1fr auto', 'gap': '10px', 'alignItems': 'end'}, children=[
 				dcc.Dropdown(
 					id='inspect-overlay-run',
@@ -94,11 +95,46 @@ def layout(out_path: str) -> html.Div:
 				html.Button('Add Trace', id='inspect-add-trace', n_clicks=0,
 					style={'padding': '8px 16px', 'cursor': 'pointer'}),
 			]),
+
+			# Active overlay list
+			html.Div(id='inspect-overlay-list', style={'marginTop': '8px'}),
 		]),
 
-		# Hidden store for overlay traces
+		# Hidden stores
 		dcc.Store(id='inspect-overlay-traces', data=[]),
 	])
+
+
+def _render_overlay_list(traces: list) -> list:
+	"""Render the list of active overlay traces with remove buttons."""
+	if not traces:
+		return []
+	items = []
+	for i, t in enumerate(traces):
+		run_label = t['run'].split('|', 1)[-1] if '|' in t['run'] else t['run']
+		label = f"{run_label} / {t['listener']} / {t['column']}"
+		items.append(html.Div(
+			style={'display': 'inline-flex', 'alignItems': 'center', 'gap': '4px',
+				'background': '#fff', 'border': '1px solid #d0d7de', 'borderRadius': '12px',
+				'padding': '2px 8px 2px 10px', 'fontSize': '12px', 'marginRight': '6px',
+				'marginTop': '4px'},
+			children=[
+				html.Span(label, style={'color': '#1f2328'}),
+				html.Button('x',
+					id={'type': 'remove-overlay-btn', 'index': i},
+					style={'background': 'none', 'border': 'none', 'cursor': 'pointer',
+						'color': '#cf222e', 'fontWeight': 'bold', 'fontSize': '13px',
+						'padding': '0 2px', 'lineHeight': '1'}),
+			],
+		))
+	return [
+		html.Div(style={'display': 'flex', 'flexWrap': 'wrap', 'alignItems': 'center'}, children=[
+			*items,
+			html.Button('Clear all', id='inspect-clear-overlays', n_clicks=0,
+				style={'fontSize': '11px', 'padding': '2px 8px', 'cursor': 'pointer',
+					'marginLeft': '8px', 'marginTop': '4px'}),
+		]),
+	]
 
 
 def register_callbacks(app: dash.Dash, out_path: str) -> None:
@@ -183,24 +219,49 @@ def register_callbacks(app: dash.Dash, out_path: str) -> None:
 	@app.callback(
 		Output('inspect-overlay-traces', 'data'),
 		Input('inspect-add-trace', 'n_clicks'),
+		Input({'type': 'remove-overlay-btn', 'index': ALL}, 'n_clicks'),
+		Input('inspect-clear-overlays', 'n_clicks'),
 		State('inspect-overlay-run', 'value'),
 		State('inspect-overlay-listener', 'value'),
 		State('inspect-overlay-column', 'value'),
 		State('inspect-overlay-traces', 'data'),
+		prevent_initial_call=True,
 	)
-	def add_overlay_trace(n_clicks, run_value, listener, column, existing_traces):
-		if not n_clicks or not all([run_value, listener, column]):
-			return existing_traces or []
-		new_trace = {
-			'run': run_value,
-			'listener': listener,
-			'column': column,
-		}
+	def modify_overlay_traces(add_clicks, remove_clicks_list, clear_clicks,
+			run_value, listener, column, existing_traces):
+		from dash import ctx
+		triggered = ctx.triggered_id
 		traces = list(existing_traces or [])
-		# Avoid duplicates
-		if new_trace not in traces:
-			traces.append(new_trace)
+
+		# Clear all
+		if triggered == 'inspect-clear-overlays':
+			return []
+
+		# Remove specific trace
+		if isinstance(triggered, dict) and triggered.get('type') == 'remove-overlay-btn':
+			idx = triggered['index']
+			if 0 <= idx < len(traces):
+				traces.pop(idx)
+			return traces
+
+		# Add new trace
+		if triggered == 'inspect-add-trace' and all([run_value, listener, column]):
+			new_trace = {
+				'run': run_value,
+				'listener': listener,
+				'column': column,
+			}
+			if new_trace not in traces:
+				traces.append(new_trace)
+
 		return traces
+
+	@app.callback(
+		Output('inspect-overlay-list', 'children'),
+		Input('inspect-overlay-traces', 'data'),
+	)
+	def render_overlay_list(traces):
+		return _render_overlay_list(traces or [])
 
 	@app.callback(
 		Output('inspect-graph', 'figure'),

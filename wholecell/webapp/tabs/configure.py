@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime
 
 import dash
 from dash import dcc, html
@@ -187,6 +188,9 @@ def register_callbacks(app: dash.Dash, on_submit) -> None:
 		if not n_clicks:
 			return ''
 
+		now = datetime.now().strftime('%Y-%m-%d %H:%M')
+		desc = f'[{now}] {description}' if description else f'[{now}]'
+
 		config = {
 			'variant': variant,
 			'first_variant_index': first_idx or 0,
@@ -194,7 +198,7 @@ def register_callbacks(app: dash.Dash, on_submit) -> None:
 			'generations': generations or 1,
 			'init_sims': seeds or 1,
 			'seed': seed_start or 0,
-			'description': description or '',
+			'description': desc,
 			'toggles': {t['name']: (t['name'] in (toggles or [])) for t in TOGGLES},
 		}
 

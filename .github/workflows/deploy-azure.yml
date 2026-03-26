@@ -1,0 +1,93 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  ACR_REGISTRY: wcecoliacr.azurecr.io
+  RESOURCE_GROUP: wcecoli-rg
+  ACI_NAME: wcecoli-webapp
+  ACI_DNS: wcecoli-webapp
+  ACI_LOCATION: uksouth
+  STORAGE_ACCOUNT: wcecolistorage
+  FILE_SHARE: wcecoli-out
+
+jobs:
+  # ── Build & push the webapp image ───────────────────────────────
+  build-webapp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to ACR
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ env.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push wcm-webapp
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ env.ACR_REGISTRY }}/wcm-webapp:latest
+          build-args: |
+            from=${{ env.ACR_REGISTRY }}/wcm-code:latest
+
+  # ── Deploy to Azure Container Instances ─────────────────────────
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-webapp
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Delete existing container (if any)
+        continue-on-error: true
+        run: |
+          az container delete \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name ${{ env.ACI_NAME }} \
+            --yes
+
+      - name: Deploy to ACI
+        run: |
+          az container create \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name ${{ env.ACI_NAME }} \
+            --image ${{ env.ACR_REGISTRY }}/wcm-webapp:latest \
+            --os-type Linux \
+            --cpu 4 \
+            --memory 8 \
+            --ports 80 \
+            --dns-name-label ${{ env.ACI_DNS }} \
+            --registry-login-server ${{ env.ACR_REGISTRY }} \
+            --registry-username ${{ secrets.ACR_USERNAME }} \
+            --registry-password ${{ secrets.ACR_PASSWORD }} \
+            --azure-file-volume-share-name ${{ env.FILE_SHARE }} \
+            --azure-file-volume-account-name ${{ env.STORAGE_ACCOUNT }} \
+            --azure-file-volume-account-key ${{ secrets.AZURE_STORAGE_KEY }} \
+            --azure-file-volume-mount-path /wcEcoli/out \
+            --environment-variables WCECOLI_WEBAPP_MODE=container WEBAPP_PORT=80
+
+      - name: Verify deployment
+        run: |
+          echo "Waiting for container to start..."
+          sleep 30
+          FQDN="${{ env.ACI_DNS }}.${{ env.ACI_LOCATION }}.azurecontainer.io"
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://${FQDN}/")
+          echo "HTTP response: ${HTTP_CODE}"
+          echo "Live at: http://${FQDN}/"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::warning::Webapp returned HTTP ${HTTP_CODE} — check container logs"
+            az container logs --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.ACI_NAME }}
+          fi

@@ -1,0 +1,207 @@
+{
+  "variants": [
+    "wildtype",
+    "aa_synthesis_ko",
+    "aa_synthesis_ko_shift",
+    "aa_synthesis_sensitivity",
+    "aa_uptake_sensitivity",
+    "add_one_aa",
+    "add_one_aa_shift",
+    "condition",
+    "gene_knockout",
+    "mene_params",
+    "metabolism_kinetic_objective_weight",
+    "metabolism_secretion_penalty",
+    "new_gene_internal_shift",
+    "param_sensitivity",
+    "ppgpp_conc",
+    "ppgpp_limitations",
+    "ppgpp_limitations_ribosome",
+    "remove_aa_inhibition",
+    "remove_aas_shift",
+    "remove_one_aa",
+    "remove_one_aa_shift",
+    "rrna_operon_knockout",
+    "rrna_location",
+    "rrna_orientation",
+    "tf_activity",
+    "time_step",
+    "timelines"
+  ],
+  "toggles": [
+    {
+      "name": "ppgpp_regulation",
+      "label": "ppGpp regulation",
+      "default": true,
+      "hint": "ppGpp is the stringent-response alarmone: high levels slow ribosome synthesis when amino acids are scarce. Disable to use a simplified constant ribosome allocation."
+    },
+    {
+      "name": "trna_charging",
+      "label": "tRNA charging",
+      "default": true,
+      "hint": "Models the enzymatic charging of tRNA with amino acids before each translation step. Disable for a simplified translation model that ignores charging kinetics."
+    },
+    {
+      "name": "d_period_division",
+      "label": "D-period division",
+      "default": true,
+      "hint": "Enforces the D-period: a fixed delay between finishing DNA replication and cell division. Disable to allow division immediately after replication completes."
+    },
+    {
+      "name": "translation_supply",
+      "label": "Translation supply",
+      "default": true,
+      "hint": "Links ribosome elongation rate to the instantaneous amino acid supply. Disable to use a fixed average elongation rate regardless of nutrient availability."
+    },
+    {
+      "name": "superhelical_density",
+      "label": "Superhelical density",
+      "default": false,
+      "hint": "Models the effect of DNA supercoiling on transcription rates. Enable for a more mechanistic treatment of transcription; increases simulation time."
+    },
+    {
+      "name": "variable_elongation_transcription",
+      "label": "Variable elongation (transcription)",
+      "default": false,
+      "hint": "Allows RNAP elongation speed to vary per gene rather than using a single average rate. Enables more realistic transcript length distributions."
+    },
+    {
+      "name": "variable_elongation_translation",
+      "label": "Variable elongation (translation)",
+      "default": false,
+      "hint": "Allows ribosome elongation speed to vary per mRNA rather than using a single average rate. Enables more realistic protein synthesis dynamics."
+    },
+    {
+      "name": "mechanistic_translation_supply",
+      "label": "Mechanistic translation supply",
+      "default": false,
+      "hint": "Uses a detailed kinetic model of amino acid supply to ribosomes instead of a lumped flux. More accurate but significantly slower to simulate."
+    },
+    {
+      "name": "mechanistic_aa_transport",
+      "label": "Mechanistic AA transport",
+      "default": false,
+      "hint": "Models amino acid import and export across the inner membrane mechanistically. Enable to study transporter saturation effects during nutrient shifts."
+    },
+    {
+      "name": "trna_attenuation",
+      "label": "tRNA attenuation",
+      "default": false,
+      "hint": "Models tRNA-mediated transcriptional attenuation of amino acid biosynthesis operons (e.g. trp, his). Enable for a more detailed treatment of biosynthetic gene regulation."
+    }
+  ],
+  "presets": [
+    {
+      "id": "preset-wildtype",
+      "label": "🧫 Wildtype baseline",
+      "description": "Single wildtype cell in minimal media — the standard reference simulation.",
+      "config": {
+        "variant": "wildtype",
+        "variant_first": 0,
+        "variant_last": 0,
+        "generations": 1,
+        "seeds": 1,
+        "seed_start": 0,
+        "description": "Wildtype baseline — minimal media"
+      }
+    },
+    {
+      "id": "preset-aa-shift",
+      "label": "📈 Nutrient upshift (add amino acids)",
+      "description": "Cell growing in minimal media, then amino acids added at 20 min. Watch growth rate accelerate.",
+      "config": {
+        "variant": "timelines",
+        "variant_first": 2,
+        "variant_last": 2,
+        "generations": 1,
+        "seeds": 1,
+        "seed_start": 0,
+        "description": "Nutrient upshift: minimal → minimal+AA at t=1200s"
+      }
+    },
+    {
+      "id": "preset-aa-downshift",
+      "label": "📉 Nutrient downshift (remove amino acids)",
+      "description": "Cell growing in rich media (with amino acids), then amino acids removed at 20 min. Watch ppGpp stress response.",
+      "config": {
+        "variant": "timelines",
+        "variant_first": 25,
+        "variant_last": 25,
+        "generations": 1,
+        "seeds": 1,
+        "seed_start": 0,
+        "description": "Nutrient downshift: minimal+AA → minimal at t=1200s"
+      }
+    },
+    {
+      "id": "preset-anaerobic",
+      "label": "🔴 Switch to anaerobic",
+      "description": "Cell growing aerobically, then oxygen removed at 20 min. Watch metabolism shift.",
+      "config": {
+        "variant": "timelines",
+        "variant_first": 18,
+        "variant_last": 18,
+        "generations": 1,
+        "seeds": 1,
+        "seed_start": 0,
+        "description": "Anaerobic shift: minimal → minimal-oxygen at t=1200s"
+      }
+    },
+    {
+      "id": "preset-rich-media",
+      "label": "⚡ Rich media (fast growth)",
+      "description": "Wildtype cell growing in minimal+amino acids media. Compare growth rate and ribosome allocation to minimal.",
+      "config": {
+        "variant": "condition",
+        "variant_first": 1,
+        "variant_last": 1,
+        "generations": 1,
+        "seeds": 1,
+        "seed_start": 0,
+        "description": "Rich media: minimal + amino acids"
+      }
+    },
+    {
+      "id": "preset-multi-seed",
+      "label": "🎲 Wildtype × 3 seeds",
+      "description": "Three independent wildtype cells with different random seeds — shows cell-to-cell variability.",
+      "config": {
+        "variant": "wildtype",
+        "variant_first": 0,
+        "variant_last": 0,
+        "generations": 1,
+        "seeds": 3,
+        "seed_start": 0,
+        "description": "Wildtype × 3 seeds — cell-to-cell variability"
+      }
+    },
+    {
+      "id": "preset-ppgpp",
+      "label": "⚠️ ppGpp sweep (starvation signal)",
+      "description": "Three ppGpp levels: low (0.4×), control (1×), high (1.6×). High ppGpp mimics amino acid starvation — watch ribosome counts drop.",
+      "config": {
+        "variant": "ppgpp_conc",
+        "variant_first": 1,
+        "variant_last": 3,
+        "generations": 1,
+        "seeds": 1,
+        "seed_start": 0,
+        "description": "ppGpp sweep: low/control/high — stringent response"
+      }
+    },
+    {
+      "id": "preset-acetate",
+      "label": "🐢 Slow growth (acetate carbon source)",
+      "description": "Acetate as sole carbon source — much slower growth than glucose. Compare mass accumulation and ribosome allocation.",
+      "config": {
+        "variant": "condition",
+        "variant_first": 2,
+        "variant_last": 2,
+        "generations": 1,
+        "seeds": 1,
+        "seed_start": 0,
+        "description": "Slow growth: acetate carbon source (condition index 2)"
+      }
+    }
+  ]
+}
